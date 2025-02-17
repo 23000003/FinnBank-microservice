@@ -1,11 +1,14 @@
 package helpers
 
-
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 	"os"
+	"account-service/models"
+	"github.com/supabase-community/supabase-go"
 )
 
 type SupabaseUser struct {
@@ -72,4 +75,36 @@ func DeleteUserByUUID(uuid string) error {
 	}
 
 	return nil
+}
+
+func GenerateAccountNumber(client *supabase.Client) (string, error) {
+	for {
+		num, err := rand.Int(rand.Reader, big.NewInt(9999999999999999))
+		if err != nil {
+			return "", err
+		}
+
+		accountNum := num.String()
+
+		for len(accountNum) < 16 {
+			accountNum = "0" + accountNum
+		}
+
+		_, count, err := client.From("account").Select("account_number", "exact", false).Eq("account_number", accountNum).Execute()
+		if err != nil {
+			return "", err
+		}
+
+		if count == 0 {
+			return accountNum, nil
+		}
+	}
+}
+
+func DataCheck(account models.Account) bool {
+	return account.Email != "" &&
+		account.Full_Name != "" &&
+		account.Phone != "" &&
+		account.Password != "" &&
+		account.AccountType != ""
 }

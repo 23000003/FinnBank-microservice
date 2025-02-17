@@ -1,11 +1,11 @@
 package service
 
 import (
-	"crypto/rand"
+	"account-service/helpers"
+	"account-service/models"
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/big"
 	"net/http"
 	"os"
 
@@ -19,15 +19,6 @@ import (
 type AccountService struct {
 	Client *supabase.Client
 	Auth   auth.Client
-}
-
-type Account struct {
-	Email       string `json:"email"`
-	Full_Name   string `json:"full_name"`
-	Phone       string `json:"phone_number"`
-	Password    string `json:"password"`
-	Address     string `json:"address"`
-	AccountType string `json:"account_type"`
 }
 
 func SupabaseInit() (*supabase.Client, auth.Client) {
@@ -61,7 +52,8 @@ func SupabaseInit() (*supabase.Client, auth.Client) {
 // @Success 200 {array} Account
 // @Router /accounts [get]
 func (s *AccountService) GetAccounts(c *gin.Context) {
-	data, count, err := s.Client.From("account").Select("*", "exact", false).Execute()
+	data, count, err := s.Client.From("account").
+		Select("*", "exact", false).Execute()
 	if err != nil || count == 0 {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch accounts"})
 		return
@@ -81,7 +73,7 @@ func (s *AccountService) GetAccounts(c *gin.Context) {
 // @Router /fetch-acc/{acc_num} [get]
 func (s *AccountService) GetAccoutById(c *gin.Context) {
 	accNum := c.Param("acc_num")
-	var accGot []Account
+	var accGot []models.Account
 	response, count, err := s.Client.From("account").
 		Select("*", "exact", false).
 		Eq("account_number", accNum).
@@ -102,17 +94,17 @@ func (s *AccountService) GetAccoutById(c *gin.Context) {
 }
 
 // @Summary Update HasCard field
-// @Description Updates the has_card attribute of an account using account_number
+// @Description Updates the attributes of an account using account_number
 // @Tags accounts
 // @Accept json
 // @Produce json
 // @Param account_number path string true "Account Number"
-// @Param request body map[string]bool true "Updated has_card value"
+// @Param request body map[string]bool true "New User detail"
 // @Success 200 {object} map[string]interface{} "Account updated OK"
 // @Failure 400 {object} map[string]string "Invalid request"
 // @Failure 500 {object} map[string]string "Internal Server Error"
 // @Router /update_acc/{acc_num} [patch]
-func (s *AccountService) UpdateHasCard(c *gin.Context) {
+func (s *AccountService) UpdateUser(c *gin.Context) {
 	accountNum := c.Param("acc_num")
 	var updateData map[string]interface{}
 
@@ -154,7 +146,7 @@ func (s *AccountService) UpdateHasCard(c *gin.Context) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /delete-user/{email} [delete]
 func (s *AccountService) DeleteUser(c *gin.Context) {
-	
+
 	email, exists := c.Get("email")
 
 	if !exists {
@@ -186,16 +178,16 @@ func (s *AccountService) DeleteUser(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Router /register [post]
 func (s *AccountService) AddAccount(c *gin.Context) {
-	var newAcc Account
+	var newAcc models.Account
 	if err := c.ShouldBindJSON(&newAcc); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON request", "details": err.Error()})
 		return
 	}
-	if !dataCheck(newAcc) {
+	if !helpers.DataCheck(newAcc) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Missing data"})
 		return
 	}
-	accNum, err := generateAccountNumber(s.Client)
+	accNum, err := helpers.GenerateAccountNumber(s.Client)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate account number"})
 	}
@@ -235,7 +227,7 @@ func (s *AccountService) AddAccount(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "No account was inserted"})
 		return
 	}
-	var insertedAcc []Account
+	var insertedAcc []models.Account
 	err = json.Unmarshal(response, &insertedAcc)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse response " + err.Error()})
@@ -245,34 +237,4 @@ func (s *AccountService) AddAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Account created successfully", "account": insertedAcc, "user": authRes})
 }
 
-func generateAccountNumber(client *supabase.Client) (string, error) {
-	for {
-		num, err := rand.Int(rand.Reader, big.NewInt(9999999999999999))
-		if err != nil {
-			return "", err
-		}
 
-		accountNum := num.String()
-
-		for len(accountNum) < 16 {
-			accountNum = "0" + accountNum
-		}
-
-		_, count, err := client.From("account").Select("account_number", "exact", false).Eq("account_number", accountNum).Execute()
-		if err != nil {
-			return "", err
-		}
-
-		if count == 0 {
-			return accountNum, nil
-		}
-	}
-}
-
-func dataCheck(account Account) bool {
-	return account.Email != "" &&
-		account.Full_Name != "" &&
-		account.Phone != "" &&
-		account.Password != "" &&
-		account.AccountType != ""
-}

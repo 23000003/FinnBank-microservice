@@ -14,8 +14,8 @@ func AccountRouter(r *gin.RouterGroup, accountService *service.AccountService) {
 	// Adding new User
 	r.POST("/register", accountService.AddAccount)
 
-	// Update has_card field
-	r.PATCH("/update_acc/:acc_num", accountService.UpdateHasCard)
+	// Update user details
+	r.PATCH("/update_acc/:acc_num", accountService.UpdateUser)
 
 	// Delete User
 	r.DELETE("/delete-user/:email",
